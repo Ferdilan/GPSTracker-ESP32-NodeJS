@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GPS Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Map Telekomunikasi</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <style>
         #map { height: 100vh; }
         .controls {
@@ -13,33 +16,24 @@
             padding: 10px;
             z-index: 1000;
         }
-        .info {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            background: white;
-            padding: 10px;
-            z-index: 1000;
-        }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div class="controls">
-        <button id="getHistory">Get History</button>
-        <button id="stopHistory">Stop History</button>
-        <button id="exportJpg">Export to JPG</button>
-    </div>
-     <div class="info">
-        <h2>GPS Info</h2>
-        <p>Latitude: <span id="latitude">-</span></p>
-        <p>Longitude: <span id="longitude">-</span></p>
-        <p>Altitude: <span id="altitude">-</span> meters</p>
-        <p>Speed: <span id="speed">-</span> m/s</p>
+        <button id="getHistory" class="btn btn-primary">Mulai Pelacakan</button>
+        <button id="stopHistory" class="btn btn-danger">Hentikan Pelacakan</button>
+        <button class="btn btn-primary" id="exportJpg">Simpan Gambar</button>
+        <button class="btn btn-primary" onclick="turnOnRelay()">Relay On</button>
+        <button class="btn btn-danger" onclick="turnOffRelay()">Relay Off</button>
+
     </div>
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.0.0-rc.7/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-image@0.0.4/leaflet-image.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-image/0.4.0/leaflet-image.min.js"></script>
+
     <script>
         const map = L.map('map').setView([0, 0], 2);
 
@@ -63,12 +57,6 @@
 
             polyline.addLatLng([latitude, longitude]);
             map.setView([latitude, longitude], 13);
-
-             // Update info
-            document.getElementById('latitude').textContent = latitude.toFixed(6);
-            document.getElementById('longitude').textContent = longitude.toFixed(6);
-            document.getElementById('altitude').textContent = altitude.toFixed(2);
-            document.getElementById('speed').textContent = speed.toFixed(2);
         });
 
         document.getElementById('getHistory').addEventListener('click', () => {
@@ -96,7 +84,7 @@
         function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
             const R = 6371e3; // Radius bumi dalam meter
             const dLat = deg2rad(lat2 - lat1);
-            const dLon = deg2rad(lat2 - lon2);
+            const dLon = deg2rad(lat2 - lon1);
             const a = 
                 Math.sin(dLat / 2) * Math.sin(dLat / 2) +
                 Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
@@ -111,6 +99,44 @@
 
         // Fungsi untuk mengekspor peta ke JPG
         document.getElementById('exportJpg').addEventListener('click', () => {
+            toastr.info('Memulai ekspor peta ke JPG...');
+            // Menunggu semua ubin peta dimuat
+            map.once('idle', function() {
+                html2canvas(document.querySelector("#map")).then(canvas => {
+                    canvas.toBlob(function(blob) {
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = 'map.jpg';
+                        link.click();
+                        toastr.success('Peta telah diekspor sebagai gambar.');
+                    }, 'image/jpeg');
+                }).catch(error => {
+                    console.error('Error capturing map:', error);
+                    toastr.error('Gagal mengekspor peta.');
+                });
+            });
+        });
+
+        function turnOnRelay() {
+            fetch('/relay/on')
+                .then(response => response.text())
+                .then(data => console.log(data))
+                .catch(error => console.error('Error:', error));
+        }
+
+        function turnOffRelay() {
+            fetch('/relay/off')
+                .then(response => response.text())
+                .then(data => console.log(data))
+                .catch(error => console.error('Error:', error));
+        }
+    </script>
+</body>
+</html>
+
+<!-- ekspor jpg yg berhasil -->
+ <!-- 
+        document.getElementById('exportJpg').addEventListener('click', () => {
             html2canvas(document.getElementById('map')).then(canvas => {
                 const link = document.createElement('a');
                 link.href = canvas.toDataURL('image/jpeg');
@@ -118,6 +144,4 @@
                 link.click();
             });
         });
-    </script>
-</body>
-</html>
+ -->

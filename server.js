@@ -1,5 +1,3 @@
-const SerialPort = require('serialport').SerialPort;
-const Readline = require('@serialport/parser-readline');
 const mqtt = require('mqtt');   //Untuk menghubungkan ke broker MQTT dan berkomunikasi menggunakan protokol MQTT.
 const mysql = require('mysql'); //untuk menguhubungkan ke mysql
 const express = require('express'); //untuk membuat server http
@@ -61,6 +59,19 @@ app.get('/history', (req, res) => {
     });
 });
 
+// Endpoint untuk menghidupkan relay
+app.get('/relay/on', (req, res) => {
+    mqttClient.publish('relay/control', 'on');
+    res.send('Relay turned on');
+});
+
+// Endpoint untuk mematikan relay
+app.get('/relay/off', (req, res) => {
+    mqttClient.publish('relay/control', 'off');
+    res.send('Relay turned off');
+});
+
+
 // Konfigurasi broker MQTT
 const brokerUrl = 'mqtt://mustang.rmq.cloudamqp.com';
 const options = {
@@ -88,41 +99,27 @@ let coordinates = {
     altitude: null,
     speed: null
 };
+   
 
-//Event listener untuk menerima pesan MQTT:
-//belum ada altitude dan speed
-// mqttClient.on('message', (topic, message) => {
-//     const value = parseFloat(message.toString());
-    
-//     if (topic === 'bujur') {
-//         coordinates.longitude = value;
-//     } else if (topic === 'lintang') {
-//         coordinates.latitude = value;
-//     }
+let trackingEnabled = true;
 
-//     if (coordinates.latitude && coordinates.longitude) {
-//         const { latitude, longitude } = coordinates;
-//         const query = 'INSERT INTO location_history (latitude, longitude) VALUES (?, ?)';
-//         db.query(query, [latitude, longitude], (err, result) => {
-//             if (err) {
-//                 console.error('Error inserting data into MySQL:', err);
-//                 return;
-//             }
-//             console.log('Data inserted into MySQL:', result.insertId);
-//         });
 
-//         io.emit('gpsUpdate', coordinates);
-//         checkGeofences(coordinates);
-//     }
-// });
-// dengan altitude dan speed
 mqttClient.on('message', (topic, message) => {
-    if (topic === 'gps_data') {
-        coordinates = JSON.parse(message.toString());
+    const value = parseFloat(message.toString());
 
-        const { latitude, longitude, altitude, speed } = coordinates;
-        const query = 'INSERT INTO location_history (latitude, longitude, altitude, speed) VALUES (?, ?, ?, ?)';
-        db.query(query, [latitude, longitude, altitude, speed], (err, result) => {
+    if (trackingEnabled){
+        if (topic === 'bujur') {
+            coordinates.longitude = value;
+        } else if (topic === 'lintang') {
+            coordinates.latitude = value;
+        }
+    }
+    console.log(`Updated coordinates: ${JSON.stringify(coordinates)}`);
+
+    if (coordinates.latitude && coordinates.longitude) {
+        const { latitude, longitude } = coordinates;
+        const query = 'INSERT INTO location_history (latitude, longitude) VALUES (?, ?)';
+        db.query(query, [latitude, longitude], (err, result) => {
             if (err) {
                 console.error('Error inserting data into MySQL:', err);
                 return;
@@ -133,37 +130,6 @@ mqttClient.on('message', (topic, message) => {
         io.emit('gpsUpdate', coordinates);
     }
 });
-
-const port = new SerialPort({ path: '/dev/ttyUSB0', baudRate: 9600 });
-const parser = port.pipe(new Readline({ delimiter: '\r\n' }));
-
-parser.on('data', data => {
-    if (data.startsWith('$GPGGA')) {
-        const gga = parseGGA(data);
-        coordinates.altitude = gga.altitude;
-    } else if (data.startsWith('$GPVTG')) {
-        const vtg = parseVTG(data);
-        coordinates.speed = vtg.speedKmh;
-    }
-
-    if (coordinates.latitude && coordinates.longitude) {
-        io.emit('gpsUpdate', coordinates);
-    }
-});
-
-function parseGGA(data) {
-    const fields = data.split(',');
-    return {
-        altitude: parseFloat(fields[9])
-    };
-}
-
-function parseVTG(data) {
-    const fields = data.split(',');
-    return {
-        speedKmh: parseFloat(fields[7])
-    };
-}
 
 // Middleware untuk menyajikan file statis
 app.use(express.static('public')); 
@@ -214,6 +180,7 @@ function checkGeofences(coords) {
 }
 // cek apakah masih didalam radius
 let geofenceStatus = {};
+
 
 
 

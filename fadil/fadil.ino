@@ -24,6 +24,8 @@ const char* mqtt_topicpubLintang = "lintang";
 
 const char* mqtt_topicsub = "gps/location";  //belum dipakai
 
+const int relayPin = 5;
+
 // Inisialisasi objek GPS dan MQTT
 TinyGPSPlus gps;
 HardwareSerial ss(2);  // Menggunakan UART2 (pin 16 dan 17)
@@ -63,7 +65,7 @@ void reconnect() {
 
     if (client.connect(clientId.c_str(), brokerUser, brokerPass)) {
       Serial.println("connected");
-
+      client.subscribe("relay/control");
       // register subscriber tp belum digunakan
       client.subscribe(mqtt_topicsub);
     } else {
@@ -79,6 +81,9 @@ void reconnect() {
 void setup() {
   Serial.begin(115200);
   ss.begin(9600, SERIAL_8N1, 16, 17);  // Menggunakan UART2 untuk GPS
+
+  pinMode(relayPin, OUTPUT);
+  digitalWrite(relayPin, LOW); // Mulai dengan relay off
 
   KoneksiWIFI();
 
@@ -146,8 +151,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println("TOPIC: " + String(topic));
   Serial.println("PAYLOAD: " + String(StringPayload));
 
-  // Filter data berdasarkan topik
-  if (strcmp(topic, mqtt_topicsub) == 0) {
-    // belum dipakai
+  if (strcmp(topic, "relay/control") == 0) {
+    if (StringPayload == "on") {
+      digitalWrite(relayPin, HIGH);
+      Serial.println("Relay is ON");
+    } else if (StringPayload == "off") {
+      digitalWrite(relayPin, LOW);
+      Serial.println("Relay is OFF");
+    }
   }
 }
